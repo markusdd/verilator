@@ -110,6 +110,20 @@ public:
             return new AstGatePin(rangep->fileline(), exprp, rangep->cloneTree(true));
         }
     }
+    AstNode* createTypedef(FileLine* fl, const string& name, AstNode* attrsp, AstNodeDType* basep,
+                           AstNodeRange* rangep) {
+        AstNode* nodep = new AstTypedef(fl, name, attrsp, VFlagChildDType(),
+                                        GRAMMARP->createArray(basep, rangep, false));
+        SYMP->reinsert(nodep);
+        PARSEP->tagNodep(nodep);
+        return nodep;
+    }
+    AstNode* createTypedefFwd(FileLine* fl, const string& name) {
+        AstNode* nodep = new AstTypedefFwd(fl, name);
+        SYMP->reinsert(nodep);
+        PARSEP->tagNodep(nodep);
+        return nodep;
+    }
     void endLabel(FileLine* fl, AstNode* nodep, string* endnamep) {
         endLabel(fl, nodep->prettyName(), endnamep);
     }
@@ -2151,21 +2165,45 @@ implicit_typeE<dtypep>:		// IEEE: part of *data_type_or_implicit
 //UNSUP	;
 
 type_declaration<nodep>:	// ==IEEE: type_declaration
-	//			// Use idAny, as we can redeclare a typedef on an existing typedef
-		yTYPEDEF data_type idAny variable_dimensionListE dtypeAttrListE ';'
-	/**/	{ $$ = new AstTypedef($<fl>3, *$3, $5, VFlagChildDType(), GRAMMARP->createArray($2,$4,false));
-		  SYMP->reinsert($$); PARSEP->tagNodep($$); }
-	|	yTYPEDEF id/*interface*/ '.' idAny/*type*/ idAny/*type*/ ';'	{ $$ = nullptr; BBUNSUP($1, "Unsupported: SystemVerilog 2005 typedef in this context"); }
+				// Data_type expanded
+		yTYPEDEF data_typeNoRef
+	/*cont*/    idAny variable_dimensionListE dtypeAttrListE ';'
+			{ AstNodeDType* dtp = $2;
+			  $$ = GRAMMARP->createTypedef($<fl>3, *$3, $5, dtp, $4); }
+	|	yTYPEDEF packageClassScope idType packed_dimensionListE
+	/*cont*/    idAny variable_dimensionListE dtypeAttrListE ';'
+			{ AstRefDType* refp = new AstRefDType($<fl>3, *$3, $2, nullptr);
+			  AstNodeDType* dtp = GRAMMARP->createArray(refp, $4, true);
+			  $$ = GRAMMARP->createTypedef($<fl>5, *$5, $7, dtp, $6); }
+	|	yTYPEDEF packageClassScope idType parameter_value_assignmentClass packed_dimensionListE
+	/*cont*/    idAny variable_dimensionListE dtypeAttrListE ';'
+			{ AstRefDType* refp = new AstRefDType($<fl>3, *$3, $2, $4);
+			  AstNodeDType* dtp = GRAMMARP->createArray(refp, $5, true);
+			  $$ = GRAMMARP->createTypedef($<fl>6, *$6, $8, dtp, $7); }
+	|	yTYPEDEF idType packed_dimensionListE
+	/*cont*/    idAny variable_dimensionListE dtypeAttrListE ';'
+			{ AstRefDType* refp = new AstRefDType($<fl>2, *$2, nullptr, nullptr);
+			  AstNodeDType* dtp = GRAMMARP->createArray(refp, $3, true);
+			  $$ = GRAMMARP->createTypedef($<fl>4, *$4, $6, dtp, $5); }
+	|	yTYPEDEF idType parameter_value_assignmentClass packed_dimensionListE
+	/*cont*/    idAny variable_dimensionListE dtypeAttrListE ';'
+			{ AstRefDType* refp = new AstRefDType($<fl>2, *$2, nullptr, $3);
+			  AstNodeDType* dtp = GRAMMARP->createArray(refp, $4, true);
+			  $$ = GRAMMARP->createTypedef($<fl>5, *$5, $7, dtp, $6); }
+	//			//
+	|	yTYPEDEF id/*interface*/ '.' idAny/*type*/ idAny/*type*/ ';'
+			{ $$ = nullptr; BBUNSUP($1, "Unsupported: SystemVerilog 2005 typedef in this context"); }
+	//			// Allow redeclaring same typedef again
+	//			// Alternative is use of idAny below, but this will cause conflicts with ablve
+	|	yTYPEDEF idType ';'			{ $$ = GRAMMARP->createTypedefFwd($<fl>2, *$2); }
 	//			// Combines into above "data_type id" rule
 	//			// Verilator: Not important what it is in the AST, just need to make sure the yaID__aTYPE gets returned
-	//UNSUP			// Below should be idAny to allow duplicate forward defs; need to expand
-	//			// data_type to exclude IDs, or add id__SEMI rule
-	|	yTYPEDEF id ';'				{ $$ = nullptr; $$ = new AstTypedefFwd($<fl>2, *$2); SYMP->reinsert($$); PARSEP->tagNodep($$); }
-	|	yTYPEDEF yENUM idAny ';'		{ $$ = nullptr; $$ = new AstTypedefFwd($<fl>3, *$3); SYMP->reinsert($$); PARSEP->tagNodep($$); }
-	|	yTYPEDEF ySTRUCT idAny ';'		{ $$ = nullptr; $$ = new AstTypedefFwd($<fl>3, *$3); SYMP->reinsert($$); PARSEP->tagNodep($$); }
-	|	yTYPEDEF yUNION idAny ';'		{ $$ = nullptr; $$ = new AstTypedefFwd($<fl>3, *$3); SYMP->reinsert($$); PARSEP->tagNodep($$); }
-	|	yTYPEDEF yCLASS idAny ';'		{ $$ = nullptr; $$ = new AstTypedefFwd($<fl>3, *$3); SYMP->reinsert($$); PARSEP->tagNodep($$); }
-	|	yTYPEDEF yINTERFACE yCLASS idAny ';'	{ $$ = nullptr; $$ = new AstTypedefFwd($<fl>4, *$4); SYMP->reinsert($$); PARSEP->tagNodep($$); }
+	|	yTYPEDEF id ';'				{ $$ = GRAMMARP->createTypedefFwd($<fl>2, *$2); }
+	|	yTYPEDEF yENUM idAny ';'		{ $$ = GRAMMARP->createTypedefFwd($<fl>3, *$3); }
+	|	yTYPEDEF ySTRUCT idAny ';'		{ $$ = GRAMMARP->createTypedefFwd($<fl>3, *$3); }
+	|	yTYPEDEF yUNION idAny ';'		{ $$ = GRAMMARP->createTypedefFwd($<fl>3, *$3); }
+	|	yTYPEDEF yCLASS idAny ';'		{ $$ = GRAMMARP->createTypedefFwd($<fl>3, *$3); }
+	|	yTYPEDEF yINTERFACE yCLASS idAny ';'	{ $$ = GRAMMARP->createTypedefFwd($<fl>4, *$4); }
 	;
 
 dtypeAttrListE<nodep>:
@@ -6178,9 +6216,9 @@ dist_list<nodep>:  // ==IEEE: dist_list
 	;
 
 dist_item<nodep>:  // ==IEEE: dist_item + dist_weight
-		value_range				{ $$ = $1; }
-	|	value_range yP_COLONEQ  expr		{ $$ = $1; BBUNSUP($1, "Unsupported: dist :="); }
-	|	value_range yP_COLONDIV expr		{ $$ = $1; BBUNSUP($1, "Unsupported: dist :/"); }
+		value_range				{ $$ = $1; /* Same as := 1 */ }
+	|	value_range yP_COLONEQ  expr		{ $$ = $1; nullptr; /*UNSUP-no-UVM*/ }
+	|	value_range yP_COLONDIV expr		{ $$ = $1; nullptr; /*UNSUP-no-UVM*/ }
 	;
 
 //UNSUPextern_constraint_declaration:  // ==IEEE: extern_constraint_declaration
