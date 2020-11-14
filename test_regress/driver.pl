@@ -1628,7 +1628,7 @@ sub _run {
                 if (!$ok) {
                     #print "**BAD  $self->{name} $param{logfile} MT $moretry  $try\n";
                     next if $moretry;
-                    $self->error("Mismatch in output from $param{cmd}[0]\n");
+                    $self->error("Miscompares in output from $param{cmd}[0]\n");
                     $self->error("Might be error in regexp format\n") if $ok<1;
                     print "GOT:\n";
                     print $wholefile;
@@ -2079,6 +2079,7 @@ sub files_identical {
                     && !/^-node:/
                     && !/^dot [^\n]+\n/
                     && !/^In file: .*\/sc_.*:\d+/
+                    && !/^libgcov.*/
             } @l1;
             @l1 = map {
                 s/(Internal Error: [^\n]+\.cpp):[0-9]+:/$1:#:/;
@@ -2101,7 +2102,7 @@ sub files_identical {
         for (my $l=0; $l<=$nl; ++$l) {
             if (($l1[$l]||"") ne ($l2[$l]||"")) {
                 next try if $moretry;
-                $self->error("Line ".($l+1)." mismatches; $fn1 != $fn2");
+                $self->error("Line ".($l+1)." miscompares; $fn1 != $fn2");
                 warn("F1: ".($l1[$l]||"*EOF*\n")
                      ."F2: ".($l2[$l]||"*EOF*\n"));
                 if ($ENV{HARNESS_UPDATE_GOLDEN}) {  # Update golden files with current
@@ -2162,7 +2163,7 @@ sub vcd_identical {
         $out = `$cmd`;
         if ($out ne '') {
             print $out;
-            $self->error("VCD miscompare $fn1 $fn2\n");
+            $self->error("VCD miscompares $fn1 $fn2\n");
             $self->copy_if_golden($fn1, $fn2);
             return 0;
         }
@@ -2177,7 +2178,7 @@ sub vcd_identical {
         my $b = Dumper($h2);
         if ($a ne $b) {
             print "$a\n$b\n" if $::Debug;
-            $self->error("VCD hier mismatch $fn1 $fn2\n");
+            $self->error("VCD hier miscompares $fn1 $fn2\n");
             $self->copy_if_golden($fn1, $fn2);
             return 0;
         }
@@ -2318,6 +2319,21 @@ sub write_wholefile {
     my $fh = IO::File->new(">$filename") or die "%Error: $! writing $filename,";
     print $fh $contents;
     $fh->close;
+    delete $_File_Contents_Cache{$filename};
+}
+
+sub file_sed {
+    my $self = (ref $_[0]? shift : $Self);
+    my $infilename = shift;
+    my $outfilename = shift;
+    my $editcb = shift;
+    my $contents = $self->file_contents($infilename);
+    {
+        $_ = $contents;
+        $editcb->($contents);
+        $contents = $_;
+    }
+    $self->write_wholefile($outfilename, $contents);
 }
 
 #######################################################################

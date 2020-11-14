@@ -106,8 +106,14 @@ int _mon_check_mcd() {
     status = vpi_mcd_printf(mcd, (PLI_BYTE8*)"hello %s", "vpi_mcd_printf");
     CHECK_RESULT(status, strlen("hello vpi_mcd_printf"));
 
+    status = vpi_mcd_printf(0, (PLI_BYTE8*)"empty");
+    CHECK_RESULT(status, 0);
+
     status = vpi_mcd_flush(mcd);
     CHECK_RESULT(status, 0);
+
+    status = vpi_mcd_flush(0);
+    CHECK_RESULT(status, 1);
 
     status = vpi_mcd_close(mcd);
     // Icarus says 'error' on ones we're not using, so check only used ones return 0.
@@ -421,6 +427,8 @@ int _mon_check_string() {
         vpi_get_value(vh1, &v);
         if (vpi_chk_error(&e)) { printf("%%vpi_chk_error : %s\n", e.message); }
 
+        (void)vpi_chk_error(NULL);
+
         CHECK_RESULT_CSTR_STRIP(v.value.str, text_test_obs[i].initial);
 
         v.value.str = (PLI_BYTE8*)text_test_obs[i].value;
@@ -448,7 +456,7 @@ int _mon_check_putget_str(p_cb_data cb_data) {
         t.type = vpiSimTime;
         t.high = 0;
         t.low = 0;
-        for (int i = 2; i <= 128; i++) {
+        for (int i = 2; i <= 6; i++) {
             static s_vpi_value v;
             int words = (i + 31) >> 5;
             TEST_MSG("========== %d ==========\n", i);
@@ -524,7 +532,7 @@ int _mon_check_putget_str(p_cb_data cb_data) {
         };
     } else {
         // setup and install
-        for (int i = 1; i <= 128; i++) {
+        for (int i = 1; i <= 6; i++) {
             char buf[32];
             snprintf(buf, sizeof(buf), TestSimulator::rooted("arr[%d].arr"), i);
             CHECK_RESULT_NZ(data[i].scope = vpi_handle_by_name((PLI_BYTE8*)buf, NULL));
@@ -609,8 +617,7 @@ static s_vpi_systf_data vpi_systf_data[] = {{vpiSysFunc, vpiIntFunc, (PLI_BYTE8*
 void vpi_compat_bootstrap(void) {
     p_vpi_systf_data systf_data_p;
     systf_data_p = &(vpi_systf_data[0]);
-    while (systf_data_p->type != 0)
-        vpi_register_systf(systf_data_p++);
+    while (systf_data_p->type != 0) vpi_register_systf(systf_data_p++);
 }
 
 // icarus entry
