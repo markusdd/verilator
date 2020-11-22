@@ -50,7 +50,7 @@
 
 //######################################################################
 
-class CaseLintVisitor : public AstNVisitor {
+class CaseLintVisitor final : public AstNVisitor {
 private:
     AstNodeCase* m_caseExprp
         = nullptr;  // Under a CASE value node, if so the relevant case statement
@@ -111,13 +111,13 @@ private:
 public:
     // CONSTRUCTORS
     explicit CaseLintVisitor(AstNodeCase* nodep) { iterate(nodep); }
-    virtual ~CaseLintVisitor() override {}
+    virtual ~CaseLintVisitor() override = default;
 };
 
 //######################################################################
 // Case state, as a visitor of each AstNode
 
-class CaseVisitor : public AstNVisitor {
+class CaseVisitor final : public AstNVisitor {
 private:
     // NODE STATE
     // Cleared each Case
@@ -133,7 +133,7 @@ private:
     int m_caseItems = 0;  // Number of caseItem unique values
     bool m_caseNoOverlapsAllCovered = false;  // Proven to be synopsys parallel_case compliant
     // For each possible value, the case branch we need
-    AstNode* m_valueItem[1 << CASE_OVERLAP_WIDTH];
+    std::array<AstNode*, 1 << CASE_OVERLAP_WIDTH> m_valueItem;
 
     // METHODS
     VL_DEBUG_FUNC;  // Declare debug()

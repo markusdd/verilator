@@ -23,6 +23,7 @@
 // Limited V3 headers here - this is a base class for Vlc etc
 #include "V3String.h"
 
+#include <array>
 #include <bitset>
 #include <cassert>
 #include <deque>
@@ -32,7 +33,7 @@
 
 //######################################################################
 
-class V3ErrorCode {
+class V3ErrorCode final {
 public:
     // clang-format off
     enum en: uint8_t  {
@@ -216,7 +217,7 @@ inline std::ostream& operator<<(std::ostream& os, const V3ErrorCode& rhs) {
 
 //######################################################################
 
-class V3Error {
+class V3Error final {
     // Base class for any object that wants debugging and error reporting
 
     typedef std::set<string> MessagesSet;
@@ -224,9 +225,10 @@ class V3Error {
 
 private:
     static bool s_describedWarnings;  // Told user how to disable warns
-    static bool
-        s_describedEachWarn[V3ErrorCode::_ENUM_MAX];  // Told user specifics about this warning
-    static bool s_pretendError[V3ErrorCode::_ENUM_MAX];  // Pretend this warning is an error
+    static std::array<bool, V3ErrorCode::_ENUM_MAX>
+        s_describedEachWarn;  // Told user specifics about this warning
+    static std::array<bool, V3ErrorCode::_ENUM_MAX>
+        s_pretendError;  // Pretend this warning is an error
     static int s_debugDefault;  // Option: --debugi Default debugging level
     static int s_errorLimit;  // Option: --error-limit Number of errors before exit
     static bool s_warnFatal;  // Option: --warnFatal Warnings are fatal

@@ -34,7 +34,7 @@
 
 //######################################################################
 
-class DescopeVisitor : public AstNVisitor {
+class DescopeVisitor final : public AstNVisitor {
 private:
     // NODE STATE
     //  Cleared entire netlist
@@ -296,7 +296,7 @@ private:
 public:
     // CONSTRUCTORS
     explicit DescopeVisitor(AstNetlist* nodep) { iterate(nodep); }
-    virtual ~DescopeVisitor() override {}
+    virtual ~DescopeVisitor() override = default;
 };
 
 //######################################################################
@@ -304,6 +304,7 @@ public:
 
 void V3Descope::descopeAll(AstNetlist* nodep) {
     UINFO(2, __FUNCTION__ << ": " << endl);
+    v3Global.assertScoped(false);
     { DescopeVisitor visitor(nodep); }  // Destruct before checking
     V3Global::dumpCheckGlobalTree("descope", 0, v3Global.opt.dumpTreeLevel(__FILE__) >= 3);
 }
