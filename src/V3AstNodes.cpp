@@ -54,7 +54,7 @@ void AstNodeVarRef::cloneRelink() {
 }
 
 string AstNodeVarRef::hiernameProtect() const {
-    return VIdProtect::protectWordsIf(hiername(), protect());
+    return hiernameToUnprot() + VIdProtect::protectWordsIf(hiernameToProt(), protect());
 }
 
 int AstNodeSel::bitConst() const {
@@ -107,7 +107,7 @@ const char* AstNodeCCall::broken() const {
 }
 bool AstNodeCCall::isPure() const { return funcp()->pure(); }
 string AstNodeCCall::hiernameProtect() const {
-    return VIdProtect::protectWordsIf(hiername(), protect());
+    return hiernameToUnprot() + VIdProtect::protectWordsIf(hiernameToProt(), protect());
 }
 
 void AstNodeCond::numberOperate(V3Number& out, const V3Number& lhs, const V3Number& rhs,
@@ -1180,6 +1180,9 @@ void AstClass::dump(std::ostream& str) const {
 }
 AstClass* AstClassExtends::classp() const {
     AstClassRefDType* refp = VN_CAST(dtypep(), ClassRefDType);
+    if (VL_UNLIKELY(!refp)) {  // LinkDot uses this for 'super.'
+        refp = VN_CAST(childDTypep(), ClassRefDType);
+    }
     UASSERT_OBJ(refp, this, "class extends non-ref");
     return refp->classp();
 }
@@ -1526,11 +1529,13 @@ void AstVarScope::dump(std::ostream& str) const {
         str << " ->UNLINKED";
     }
 }
-void AstNodeVarRef::dump(std::ostream& str) const { this->AstNodeMath::dump(str); }
+void AstNodeVarRef::dump(std::ostream& str) const {
+    this->AstNodeMath::dump(str);
+    if (classOrPackagep()) str << " pkg=" << nodeAddr(classOrPackagep());
+    str << " " << access().arrow() << " ";
+}
 void AstVarXRef::dump(std::ostream& str) const {
     this->AstNodeVarRef::dump(str);
-    if (packagep()) str << " pkg=" << nodeAddr(packagep());
-    str << " " << access().arrow() << " ";
     str << ".=" << dotted() << " ";
     if (inlinedDots() != "") str << " inline.=" << inlinedDots() << " - ";
     if (varScopep()) {
@@ -1543,8 +1548,6 @@ void AstVarXRef::dump(std::ostream& str) const {
 }
 void AstVarRef::dump(std::ostream& str) const {
     this->AstNodeVarRef::dump(str);
-    if (packagep()) str << " pkg=" << nodeAddr(packagep());
-    str << " " << access().arrow() << " ";
     if (varScopep()) {
         varScopep()->dump(str);
     } else if (varp()) {
@@ -1620,7 +1623,7 @@ void AstActive::dump(std::ostream& str) const {
 }
 void AstNodeFTaskRef::dump(std::ostream& str) const {
     this->AstNodeStmt::dump(str);
-    if (packagep()) { str << " pkg=" << nodeAddr(packagep()); }
+    if (classOrPackagep()) str << " pkg=" << nodeAddr(classOrPackagep());
     str << " -> ";
     if (dotted() != "") { str << ".=" << dotted() << " "; }
     if (taskp()) {

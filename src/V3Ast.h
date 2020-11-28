@@ -1761,7 +1761,7 @@ public:
     string warnOther() const { return fileline()->warnOther(); }
 
     virtual void dump(std::ostream& str = std::cout) const;
-    void dumpGdb();  // For GDB only
+    static void dumpGdb(const AstNode* nodep);  // For GDB only
     void dumpGdbHeader() const;
 
     // METHODS - Tree modifications
@@ -1811,12 +1811,12 @@ public:
     void dumpTree(const string& indent, int maxDepth = 0) const {
         dumpTree(cout, indent, maxDepth);
     }
-    void dumpTreeGdb();  // For GDB only
+    static void dumpTreeGdb(const AstNode* nodep);  // For GDB only
     void dumpTreeAndNext(std::ostream& os = std::cout, const string& indent = "    ",
                          int maxDepth = 0) const;
     void dumpTreeFile(const string& filename, bool append = false, bool doDump = true,
                       bool doCheck = true);
-    static void dumpTreeFileGdb(const char* filenamep = nullptr);
+    static void dumpTreeFileGdb(const AstNode* nodep, const char* filenamep = nullptr);
 
     // METHODS - queries
     // Changes control flow, disable some optimizations
@@ -2298,9 +2298,10 @@ private:
     VAccess m_access;  // Left hand side assignment
     AstVar* m_varp;  // [AfterLink] Pointer to variable itself
     AstVarScope* m_varScopep = nullptr;  // Varscope for hierarchy
-    AstNodeModule* m_packagep = nullptr;  // Package hierarchy
+    AstNodeModule* m_classOrPackagep = nullptr;  // Package hierarchy
     string m_name;  // Name of variable
-    string m_hiername;  // Scope converted into name-> for emitting
+    string m_hiernameToProt;  // Scope converted into name-> for emitting
+    string m_hiernameToUnprot;  // Scope converted into name-> for emitting
     bool m_hierThis = false;  // Hiername points to "this" function
 
 public:
@@ -2331,13 +2332,15 @@ public:
     void varp(AstVar* varp);
     AstVarScope* varScopep() const { return m_varScopep; }
     void varScopep(AstVarScope* varscp) { m_varScopep = varscp; }
-    string hiername() const { return m_hiername; }
+    string hiernameToProt() const { return m_hiernameToProt; }
+    void hiernameToProt(const string& hn) { m_hiernameToProt = hn; }
+    string hiernameToUnprot() const { return m_hiernameToUnprot; }
+    void hiernameToUnprot(const string& hn) { m_hiernameToUnprot = hn; }
     string hiernameProtect() const;
-    void hiername(const string& hn) { m_hiername = hn; }
     bool hierThis() const { return m_hierThis; }
     void hierThis(bool flag) { m_hierThis = flag; }
-    AstNodeModule* packagep() const { return m_packagep; }
-    void packagep(AstNodeModule* nodep) { m_packagep = nodep; }
+    AstNodeModule* classOrPackagep() const { return m_classOrPackagep; }
+    void classOrPackagep(AstNodeModule* nodep) { m_classOrPackagep = nodep; }
     // Know no children, and hot function, so skip iterator for speed
     // See checkTreeIter also that asserts no children
     // cppcheck-suppress functionConst
@@ -2620,7 +2623,8 @@ class AstNodeCCall VL_NOT_FINAL : public AstNodeStmt {
     // A call of a C++ function, perhaps a AstCFunc or perhaps globally named
     // Functions are not statements, while tasks are. AstNodeStmt needs isStatement() to deal.
     AstCFunc* m_funcp;
-    string m_hiername;
+    string m_hiernameToProt;
+    string m_hiernameToUnprot;
     string m_argTypes;
 
 public:
@@ -2634,7 +2638,8 @@ public:
     AstNodeCCall(AstType t, AstNodeCCall* oldp, AstCFunc* funcp)
         : AstNodeStmt{t, oldp->fileline(), true}
         , m_funcp{funcp} {
-        m_hiername = oldp->hiername();
+        m_hiernameToProt = oldp->hiernameToProt();
+        m_hiernameToUnprot = oldp->hiernameToUnprot();
         m_argTypes = oldp->argTypes();
         if (oldp->argsp()) addNOp2p(oldp->argsp()->unlinkFrBackWithNext());
     }
@@ -2654,8 +2659,10 @@ public:
     virtual bool isPure() const override;
     virtual bool isOutputter() const override { return !isPure(); }
     AstCFunc* funcp() const { return m_funcp; }
-    string hiername() const { return m_hiername; }
-    void hiername(const string& hn) { m_hiername = hn; }
+    string hiernameToProt() const { return m_hiernameToProt; }
+    void hiernameToProt(const string& hn) { m_hiernameToProt = hn; }
+    string hiernameToUnprot() const { return m_hiernameToUnprot; }
+    void hiernameToUnprot(const string& hn) { m_hiernameToUnprot = hn; }
     string hiernameProtect() const;
     void argTypes(const string& str) { m_argTypes = str; }
     string argTypes() const { return m_argTypes; }
@@ -2681,6 +2688,8 @@ private:
     bool m_dpiOpenChild : 1;  // DPI import open array child wrapper
     bool m_dpiTask : 1;  // DPI import task (vs. void function)
     bool m_isConstructor : 1;  // Class constructor
+    bool m_isHideLocal : 1;  // Verilog local
+    bool m_isHideProtected : 1;  // Verilog protected
     bool m_pure : 1;  // DPI import pure (vs. virtual pure)
     bool m_pureVirtual : 1;  // Pure virtual
     bool m_virtual : 1;  // Virtual method in class
@@ -2701,6 +2710,8 @@ public:
         , m_dpiOpenChild{false}
         , m_dpiTask{false}
         , m_isConstructor{false}
+        , m_isHideLocal{false}
+        , m_isHideProtected{false}
         , m_pure{false}
         , m_pureVirtual{false}
         , m_virtual{false} {
@@ -2723,8 +2734,8 @@ public:
     void addFvarp(AstNode* nodep) { addNOp1p(nodep); }
     bool isFunction() const { return fvarp() != nullptr; }
     // op2 = Class/package scope
-    AstNode* packagep() const { return op2p(); }
-    void packagep(AstNode* nodep) { setNOp2p(nodep); }
+    AstNode* classOrPackagep() const { return op2p(); }
+    void classOrPackagep(AstNode* nodep) { setNOp2p(nodep); }
     // op3 = Statements/Ports/Vars
     AstNode* stmtsp() const { return op3p(); }  // op3 = List of statements
     void addStmtsp(AstNode* nodep) { addNOp3p(nodep); }
@@ -2759,6 +2770,10 @@ public:
     bool dpiTask() const { return m_dpiTask; }
     void isConstructor(bool flag) { m_isConstructor = flag; }
     bool isConstructor() const { return m_isConstructor; }
+    bool isHideLocal() const { return m_isHideLocal; }
+    void isHideLocal(bool flag) { m_isHideLocal = flag; }
+    bool isHideProtected() const { return m_isHideProtected; }
+    void isHideProtected(bool flag) { m_isHideProtected = flag; }
     void pure(bool flag) { m_pure = flag; }
     bool pure() const { return m_pure; }
     void pureVirtual(bool flag) { m_pureVirtual = flag; }
@@ -2774,7 +2789,7 @@ class AstNodeFTaskRef VL_NOT_FINAL : public AstNodeStmt {
     // Functions are not statements, while tasks are. AstNodeStmt needs isStatement() to deal.
 private:
     AstNodeFTask* m_taskp = nullptr;  // [AfterLink] Pointer to task referenced
-    AstNodeModule* m_packagep = nullptr;  // Package hierarchy
+    AstNodeModule* m_classOrPackagep = nullptr;  // Package hierarchy
     string m_name;  // Name of variable
     string m_dotted;  // Dotted part of scope the name()ed task/func is under or ""
     string m_inlinedDots;  // Dotted hierarchy flattened out
@@ -2808,8 +2823,8 @@ public:
     void taskp(AstNodeFTask* taskp) { m_taskp = taskp; }
     virtual void name(const string& name) override { m_name = name; }
     void dotted(const string& name) { m_dotted = name; }
-    AstNodeModule* packagep() const { return m_packagep; }
-    void packagep(AstNodeModule* nodep) { m_packagep = nodep; }
+    AstNodeModule* classOrPackagep() const { return m_classOrPackagep; }
+    void classOrPackagep(AstNodeModule* nodep) { m_classOrPackagep = nodep; }
     bool pli() const { return m_pli; }
     void pli(bool flag) { m_pli = flag; }
     // op1 = namep
@@ -2994,7 +3009,7 @@ inline VNumRange AstNodeArrayDType::declRange() const {
 
 inline const char* AstNodeFTaskRef::broken() const {
     BROKEN_RTN(m_taskp && !m_taskp->brokeExists());
-    BROKEN_RTN(m_packagep && !m_packagep->brokeExists());
+    BROKEN_RTN(m_classOrPackagep && !m_classOrPackagep->brokeExists());
     return nullptr;
 }
 

@@ -303,7 +303,7 @@ class AstClass final : public AstNodeModule {
     typedef std::map<const string, AstNode*> MemberNameMap;
     // MEMBERS
     MemberNameMap m_members;  // Members or method children
-    AstClassPackage* m_packagep = nullptr;  // Class package this is under
+    AstClassPackage* m_classOrPackagep = nullptr;  // Class package this is under
     bool m_virtual = false;  // Virtual class
     bool m_extended = false;  // Is extension or extended by other classes
     void insertCache(AstNode* nodep);
@@ -318,12 +318,12 @@ public:
     virtual void dump(std::ostream& str) const override;
     virtual const char* broken() const override {
         BROKEN_BASE_RTN(AstNodeModule::broken());
-        BROKEN_RTN(m_packagep && !m_packagep->brokeExists());
+        BROKEN_RTN(m_classOrPackagep && !m_classOrPackagep->brokeExists());
         return nullptr;
     }
     // op1/op2/op3 in AstNodeModule
-    AstClassPackage* packagep() const { return m_packagep; }
-    void packagep(AstClassPackage* classpackagep) { m_packagep = classpackagep; }
+    AstClassPackage* classOrPackagep() const { return m_classOrPackagep; }
+    void classOrPackagep(AstClassPackage* classpackagep) { m_classOrPackagep = classpackagep; }
     AstNode* membersp() const { return stmtsp(); }  // op2 = List of statements
     void addMembersp(AstNode* nodep) {
         insertCache(nodep);
@@ -395,7 +395,8 @@ public:
     virtual AstNodeDType* skipRefToEnump() const override { return subDTypep()->skipRefToEnump(); }
     virtual bool similarDType(AstNodeDType* samep) const override {
         const AstParamTypeDType* sp = static_cast<const AstParamTypeDType*>(samep);
-        return (sp && this->subDTypep()->skipRefp()->similarDType(sp->subDTypep()->skipRefp()));
+        return type() == samep->type() && sp
+               && this->subDTypep()->skipRefp()->similarDType(sp->subDTypep()->skipRefp());
     }
     virtual int widthAlignBytes() const override { return dtypep()->widthAlignBytes(); }
     virtual int widthTotalBytes() const override { return dtypep()->widthTotalBytes(); }
@@ -545,8 +546,8 @@ public:
     }
     virtual bool similarDType(AstNodeDType* samep) const override {
         const AstAssocArrayDType* asamep = static_cast<const AstAssocArrayDType*>(samep);
-        if (!asamep->subDTypep()) return false;
-        return (subDTypep()->skipRefp()->similarDType(asamep->subDTypep()->skipRefp()));
+        return type() == samep->type() && asamep->subDTypep()
+               && subDTypep()->skipRefp()->similarDType(asamep->subDTypep()->skipRefp());
     }
     virtual string prettyDTypeName() const override;
     virtual void dumpSmall(std::ostream& str) const override;
@@ -643,8 +644,8 @@ public:
     }
     virtual bool similarDType(AstNodeDType* samep) const override {
         const AstAssocArrayDType* asamep = static_cast<const AstAssocArrayDType*>(samep);
-        if (!asamep->subDTypep()) return false;
-        return (subDTypep()->skipRefp()->similarDType(asamep->subDTypep()->skipRefp()));
+        return type() == samep->type() && asamep->subDTypep()
+               && subDTypep()->skipRefp()->similarDType(asamep->subDTypep()->skipRefp());
     }
     virtual string prettyDTypeName() const override;
     virtual void dumpSmall(std::ostream& str) const override;
@@ -753,8 +754,8 @@ public:
     }
     virtual bool similarDType(AstNodeDType* samep) const override {
         const AstNodeArrayDType* asamep = static_cast<const AstNodeArrayDType*>(samep);
-        if (!asamep->subDTypep()) return false;
-        return (subDTypep()->skipRefp()->similarDType(asamep->subDTypep()->skipRefp()));
+        return type() == samep->type() && asamep->subDTypep()
+               && subDTypep()->skipRefp()->similarDType(asamep->subDTypep()->skipRefp());
     }
     virtual void dumpSmall(std::ostream& str) const override;
     virtual V3Hash sameHash() const override { return V3Hash(m_refDTypep); }
@@ -988,14 +989,16 @@ public:
 
 class AstClassRefDType final : public AstNodeDType {
     // Reference to a class
+    // Children: PINs (for parameter settings)
 private:
     AstClass* m_classp;  // data type pointed to, BELOW the AstTypedef
-    AstNodeModule* m_packagep = nullptr;  // Package hierarchy
+    AstNodeModule* m_classOrPackagep = nullptr;  // Package hierarchy
 public:
-    AstClassRefDType(FileLine* fl, AstClass* classp)
+    AstClassRefDType(FileLine* fl, AstClass* classp, AstNode* paramsp)
         : ASTGEN_SUPER(fl)
         , m_classp{classp} {
         dtypep(this);
+        addNOp4p(paramsp);
     }
     ASTNODE_NODE_FUNCS(ClassRefDType)
     // METHODS
@@ -1008,13 +1011,13 @@ public:
     }
     virtual bool same(const AstNode* samep) const override {
         const AstClassRefDType* asamep = static_cast<const AstClassRefDType*>(samep);
-        return (m_classp == asamep->m_classp && m_packagep == asamep->m_packagep);
+        return (m_classp == asamep->m_classp && m_classOrPackagep == asamep->m_classOrPackagep);
     }
     virtual bool similarDType(AstNodeDType* samep) const override {
-        return this == samep || same(samep);
+        return this == samep || (type() == samep->type() && same(samep));
     }
     virtual V3Hash sameHash() const override {
-        return V3Hash(V3Hash(m_classp), V3Hash(m_packagep));
+        return V3Hash(V3Hash(m_classp), V3Hash(m_classOrPackagep));
     }
     virtual void dump(std::ostream& str = std::cout) const override;
     virtual void dumpSmall(std::ostream& str) const override;
@@ -1028,10 +1031,11 @@ public:
     virtual AstNodeDType* virtRefDTypep() const override { return nullptr; }
     virtual void virtRefDTypep(AstNodeDType* nodep) override {}
     virtual AstNodeDType* subDTypep() const override { return nullptr; }
-    AstNodeModule* packagep() const { return m_packagep; }
-    void packagep(AstNodeModule* nodep) { m_packagep = nodep; }
+    AstNodeModule* classOrPackagep() const { return m_classOrPackagep; }
+    void classOrPackagep(AstNodeModule* nodep) { m_classOrPackagep = nodep; }
     AstClass* classp() const { return m_classp; }
     void classp(AstClass* nodep) { m_classp = nodep; }
+    AstPin* paramsp() const { return VN_CAST(op4p(), Pin); }
 };
 
 class AstIfaceRefDType final : public AstNodeDType {
@@ -1124,8 +1128,8 @@ public:
     }
     virtual bool similarDType(AstNodeDType* samep) const override {
         const AstQueueDType* asamep = static_cast<const AstQueueDType*>(samep);
-        if (!asamep->subDTypep()) return false;
-        return (subDTypep()->skipRefp()->similarDType(asamep->subDTypep()->skipRefp()));
+        return type() == samep->type() && asamep->subDTypep()
+               && subDTypep()->skipRefp()->similarDType(asamep->subDTypep()->skipRefp());
     }
     virtual void dumpSmall(std::ostream& str) const override;
     virtual V3Hash sameHash() const override { return V3Hash(m_refDTypep); }
@@ -1167,7 +1171,7 @@ private:
     // Post-width typedefs are removed and point to type directly
     AstNodeDType* m_refDTypep = nullptr;  // data type pointed to, BELOW the AstTypedef
     string m_name;  // Name of an AstTypedef
-    AstNodeModule* m_packagep = nullptr;  // Package hierarchy
+    AstNodeModule* m_classOrPackagep = nullptr;  // Package hierarchy
 public:
     AstRefDType(FileLine* fl, const string& name)
         : ASTGEN_SUPER(fl)
@@ -1197,13 +1201,13 @@ public:
     virtual bool same(const AstNode* samep) const override {
         const AstRefDType* asamep = static_cast<const AstRefDType*>(samep);
         return (m_typedefp == asamep->m_typedefp && m_refDTypep == asamep->m_refDTypep
-                && m_name == asamep->m_name && m_packagep == asamep->m_packagep);
+                && m_name == asamep->m_name && m_classOrPackagep == asamep->m_classOrPackagep);
     }
     virtual bool similarDType(AstNodeDType* samep) const override {
         return skipRefp()->similarDType(samep->skipRefp());
     }
     virtual V3Hash sameHash() const override {
-        return V3Hash(V3Hash(m_typedefp), V3Hash(m_packagep));
+        return V3Hash(V3Hash(m_typedefp), V3Hash(m_classOrPackagep));
     }
     virtual void dump(std::ostream& str = std::cout) const override;
     virtual string name() const override { return m_name; }
@@ -1253,10 +1257,10 @@ public:
     void refDTypep(AstNodeDType* nodep) { m_refDTypep = nodep; }
     virtual AstNodeDType* virtRefDTypep() const override { return refDTypep(); }
     virtual void virtRefDTypep(AstNodeDType* nodep) override { refDTypep(nodep); }
-    AstNodeModule* packagep() const { return m_packagep; }
-    void packagep(AstNodeModule* nodep) { m_packagep = nodep; }
+    AstNodeModule* classOrPackagep() const { return m_classOrPackagep; }
+    void classOrPackagep(AstNodeModule* nodep) { m_classOrPackagep = nodep; }
     AstNode* typeofp() const { return op2p(); }
-    AstNode* classOrPackagep() const { return op3p(); }
+    AstNode* classOrPackageOpp() const { return op3p(); }
     AstPin* paramsp() const { return VN_CAST(op4p(), Pin); }
 };
 
@@ -1395,12 +1399,12 @@ public:
 class AstEnumItemRef final : public AstNodeMath {
 private:
     AstEnumItem* m_itemp;  // [AfterLink] Pointer to item
-    AstNodeModule* m_packagep;  // Package hierarchy
+    AstNodeModule* m_classOrPackagep;  // Package hierarchy
 public:
-    AstEnumItemRef(FileLine* fl, AstEnumItem* itemp, AstNodeModule* packagep)
+    AstEnumItemRef(FileLine* fl, AstEnumItem* itemp, AstNodeModule* classOrPackagep)
         : ASTGEN_SUPER(fl)
         , m_itemp{itemp}
-        , m_packagep{packagep} {
+        , m_classOrPackagep{classOrPackagep} {
         dtypeFrom(m_itemp);
     }
     ASTNODE_NODE_FUNCS(EnumItemRef)
@@ -1422,8 +1426,8 @@ public:
     virtual string emitVerilog() override { V3ERROR_NA_RETURN(""); }
     virtual string emitC() override { V3ERROR_NA_RETURN(""); }
     virtual bool cleanOut() const override { return true; }
-    AstNodeModule* packagep() const { return m_packagep; }
-    void packagep(AstNodeModule* nodep) { m_packagep = nodep; }
+    AstNodeModule* classOrPackagep() const { return m_classOrPackagep; }
+    void classOrPackagep(AstNodeModule* nodep) { m_classOrPackagep = nodep; }
 };
 
 class AstEnumDType final : public AstNodeDType {
@@ -1897,6 +1901,8 @@ private:
     bool m_isPullup : 1;  // Tri1
     bool m_isIfaceParent : 1;  // dtype is reference to interface present in this module
     bool m_isDpiOpenArray : 1;  // DPI import open array
+    bool m_isHideLocal : 1;  // Verilog local
+    bool m_isHideProtected : 1;  // Verilog protected
     bool m_noReset : 1;  // Do not do automated reset/randomization
     bool m_noSubst : 1;  // Do not substitute out references
     bool m_overridenParam : 1;  // Overridden parameter by #(...) or defparam
@@ -1934,6 +1940,8 @@ private:
         m_isPullup = false;
         m_isIfaceParent = false;
         m_isDpiOpenArray = false;
+        m_isHideLocal = false;
+        m_isHideProtected = false;
         m_noReset = false;
         m_noSubst = false;
         m_overridenParam = false;
@@ -2083,6 +2091,10 @@ public:
     void funcReturn(bool flag) { m_funcReturn = flag; }
     void isDpiOpenArray(bool flag) { m_isDpiOpenArray = flag; }
     bool isDpiOpenArray() const { return m_isDpiOpenArray; }
+    bool isHideLocal() const { return m_isHideLocal; }
+    void isHideLocal(bool flag) { m_isHideLocal = flag; }
+    bool isHideProtected() const { return m_isHideProtected; }
+    void isHideProtected(bool flag) { m_isHideProtected = flag; }
     void noReset(bool flag) { m_noReset = flag; }
     bool noReset() const { return m_noReset; }
     void noSubst(bool flag) { m_noSubst = flag; }
@@ -2347,7 +2359,7 @@ public:
     ASTNODE_NODE_FUNCS(VarRef)
     virtual void dump(std::ostream& str) const override;
     virtual V3Hash sameHash() const override {
-        return V3Hash(V3Hash(varp()->name()), V3Hash(hiername()));
+        return V3Hash(V3Hash(varp()->name()), V3Hash(hiernameToProt()));
     }
     virtual bool same(const AstNode* samep) const override {
         return same(static_cast<const AstVarRef*>(samep));
@@ -2356,16 +2368,18 @@ public:
         if (varScopep()) {
             return (varScopep() == samep->varScopep() && access() == samep->access());
         } else {
-            return (hiername() == samep->hiername() && varp()->name() == samep->varp()->name()
-                    && access() == samep->access());
+            return (hiernameToProt() == samep->hiernameToProt()
+                    && hiernameToUnprot() == samep->hiernameToUnprot()
+                    && varp()->name() == samep->varp()->name() && access() == samep->access());
         }
     }
     inline bool sameNoLvalue(AstVarRef* samep) const {
         if (varScopep()) {
             return (varScopep() == samep->varScopep());
         } else {
-            return (hiername() == samep->hiername()
-                    && (hiername() != "" || samep->hiername() != "")
+            return (hiernameToProt() == samep->hiernameToProt()
+                    && hiernameToUnprot() == samep->hiernameToUnprot()
+                    && (!hiernameToProt().empty() || !samep->hiernameToProt().empty())
                     && varp()->name() == samep->varp()->name());
         }
     }
@@ -2406,7 +2420,8 @@ public:
     virtual V3Hash sameHash() const override { return V3Hash(V3Hash(varp()), V3Hash(dotted())); }
     virtual bool same(const AstNode* samep) const override {
         const AstVarXRef* asamep = static_cast<const AstVarXRef*>(samep);
-        return (hiername() == asamep->hiername() && varp() == asamep->varp()
+        return (hiernameToProt() == asamep->hiernameToProt()
+                && hiernameToUnprot() == asamep->hiernameToUnprot() && varp() == asamep->varp()
                 && name() == asamep->name() && dotted() == asamep->dotted());
     }
 };
@@ -3107,11 +3122,13 @@ class AstLambdaArgRef final : public AstNodeMath {
     // optimizations and AstVar's are painful to remove.
 private:
     string m_name;  // Name of variable
+    bool m_index;  // Index, not value
 
 public:
-    AstLambdaArgRef(FileLine* fl, const string& name)
+    AstLambdaArgRef(FileLine* fl, const string& name, bool index)
         : ASTGEN_SUPER(fl)
-        , m_name{name} {}
+        , m_name{name}
+        , m_index(index) {}
     ASTNODE_NODE_FUNCS(LambdaArgRef)
     virtual V3Hash sameHash() const override { return V3Hash(); }
     virtual bool same(const AstNode* samep) const override { return true; }
@@ -3122,31 +3139,37 @@ public:
     virtual int instrCount() const override { return widthInstrs(); }
     virtual string name() const override { return m_name; }  // * = Var name
     virtual void name(const string& name) override { m_name = name; }
+    bool index() const { return m_index; }
 };
 
 class AstWith final : public AstNodeStmt {
     // Used as argument to method, then to AstCMethodHard
     // dtypep() contains the with lambda's return dtype
     // Parents: funcref (similar to AstArg)
-    // Children: VAR that declares the index variable
+    // Children: LambdaArgRef that declares the item variable
+    // Children: LambdaArgRef that declares the item.index variable
     // Children: math (equation establishing the with)
 public:
-    AstWith(FileLine* fl, AstLambdaArgRef* argrefp, AstNode* exprp)
+    AstWith(FileLine* fl, AstLambdaArgRef* indexArgRefp, AstLambdaArgRef* valueArgRefp,
+            AstNode* exprp)
         : ASTGEN_SUPER(fl) {
-        addOp1p(argrefp);
-        addNOp2p(exprp);
+        addOp1p(indexArgRefp);
+        addOp2p(valueArgRefp);
+        addNOp3p(exprp);
     }
     ASTNODE_NODE_FUNCS(With)
     virtual V3Hash sameHash() const override { return V3Hash(); }
     virtual bool same(const AstNode* samep) const override { return true; }
     virtual bool hasDType() const override { return true; }
     virtual const char* broken() const override {
-        BROKEN_RTN(!argrefp());  // varp needed to know lambda's arg dtype
+        BROKEN_RTN(!indexArgRefp());  // varp needed to know lambda's arg dtype
+        BROKEN_RTN(!valueArgRefp());  // varp needed to know lambda's arg dtype
         return nullptr;
     }
     //
-    AstLambdaArgRef* argrefp() const { return VN_CAST(op1p(), LambdaArgRef); }
-    AstNode* exprp() const { return op2p(); }
+    AstLambdaArgRef* indexArgRefp() const { return VN_CAST(op1p(), LambdaArgRef); }
+    AstLambdaArgRef* valueArgRefp() const { return VN_CAST(op2p(), LambdaArgRef); }
+    AstNode* exprp() const { return op3p(); }
 };
 
 //######################################################################

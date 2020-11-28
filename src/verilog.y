@@ -1837,8 +1837,10 @@ data_typeNoRef<dtypep>:		// ==IEEE: data_type, excluding class_type etc referenc
 	//			// IEEE has ['.' modport] but that will conflict with port
 	//			// declarations which decode '.' modport themselves, so
 	//			// instead see data_typeVar
-	|	yVIRTUAL__INTERFACE yINTERFACE id/*interface*/	{ $$ = nullptr; BBUNSUP($1, "Unsupported: virtual interface"); }
-	|	yVIRTUAL__anyID                id/*interface*/	{ $$ = nullptr; BBUNSUP($1, "Unsupported: virtual data type"); }
+	|	yVIRTUAL__INTERFACE yINTERFACE id/*interface*/
+			{ $$ = new AstBasicDType($1, AstBasicDTypeKwd::CHANDLE); BBUNSUP($1, "Unsupported: virtual interface"); }
+	|	yVIRTUAL__anyID                id/*interface*/
+			{ $$ = new AstBasicDType($1, AstBasicDTypeKwd::CHANDLE); BBUNSUP($1, "Unsupported: virtual data type"); }
 	|	type_reference				{ $$ = $1; }
 	//			// IEEE: class_scope: see data_type above
 	//			// IEEE: class_type: see data_type above
@@ -3873,7 +3875,7 @@ taskId<ftaskp>:
 	//
 	|	packageClassScope id
 			{ $$ = new AstTask($<fl>$, *$2, nullptr);
-			  $$->packagep($1);
+			  $$->classOrPackagep($1);
 			  SYMP->pushNewUnderNodeOrCurrent($$, $<scp>1); }
 	;
 
@@ -3912,7 +3914,7 @@ funcIdNew<ftaskp>:		// IEEE: from class_constructor_declaration
 			  SYMP->pushNewUnder($$, nullptr); }
 	|	packageClassScopeNoId yNEW__PAREN
 			{ $$ = new AstFunc($<fl>2, "new", nullptr, nullptr);
-			  $$->packagep($1);
+			  $$->classOrPackagep($1);
 			  $$->isConstructor(true);
 			  SYMP->pushNewUnderNodeOrCurrent($$, $<scp>1); }
 	;
@@ -3934,7 +3936,7 @@ fIdScoped<funcp>:		// IEEE: part of function_body_declaration/task_body_declarat
 			{ $<fl>$ = $<fl>1;
 			  $<scp>$ = $<scp>1;
 			  $$ = new AstFunc($<fl>$, *$2, nullptr, nullptr);
-			  $$->packagep($1); }
+			  $$->classOrPackagep($1); }
 	;
 
 tfGuts<nodep>:
