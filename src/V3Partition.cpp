@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2020 by Wilson Snyder. This program is free software; you
+// Copyright 2003-2021 by Wilson Snyder. This program is free software; you
 // can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -306,7 +306,8 @@ private:
     }
     void go() {
         // Generate a pseudo-random graph
-        std::array<vluint64_t, 2> rngState = {0x12345678ULL, 0x9abcdef0ULL};
+        std::array<vluint64_t, 2> rngState
+            = {{0x12345678ULL, 0x9abcdef0ULL}};  // GCC 3.8.0 wants {{}}
         // Create 50 vertices
         for (auto& i : m_vx) i = new V3GraphVertex(&m_graph);
         // Create 250 edges at random. Edges must go from

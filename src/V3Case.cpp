@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2020 by Wilson Snyder. This program is free software; you
+// Copyright 2003-2021 by Wilson Snyder. This program is free software; you
 // can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -127,6 +127,7 @@ private:
     // STATE
     VDouble0 m_statCaseFast;  // Statistic tracking
     VDouble0 m_statCaseSlow;  // Statistic tracking
+    AstNode* m_alwaysp = nullptr;  // Always in which case is located
 
     // Per-CASE
     int m_caseWidth = 0;  // Width of valueItems
@@ -318,7 +319,7 @@ private:
              itemp = VN_CAST(itemp->nextp(), CaseItem)) {
             if (!itemp->condsp()) {
                 // Default clause.  Just make true, we'll optimize it away later
-                itemp->condsp(new AstConst(itemp->fileline(), AstConst::LogicTrue()));
+                itemp->condsp(new AstConst(itemp->fileline(), AstConst::BitTrue()));
                 hadDefault = true;
             } else {
                 // Expressioned clause
@@ -336,7 +337,7 @@ private:
                         VL_DANGLING(iconstp);
                         // For simplicity, make expression that is not equal, and let later
                         // optimizations remove it
-                        condp = new AstConst(itemp->fileline(), AstConst::LogicFalse());
+                        condp = new AstConst(itemp->fileline(), AstConst::BitFalse());
                     } else if (AstInsideRange* irangep = VN_CAST(icondp, InsideRange)) {
                         // Similar logic in V3Width::visit(AstInside)
                         condp = irangep->newAndFromInside(cexprp, irangep->lhsp()->unlinkFrBack(),
@@ -375,9 +376,8 @@ private:
         if (!hadDefault) {
             // If there was no default, add a empty one, this greatly simplifies below code
             // and constant propagation will just eliminate it for us later.
-            nodep->addItemsp(
-                new AstCaseItem(nodep->fileline(),
-                                new AstConst(nodep->fileline(), AstConst::LogicTrue()), nullptr));
+            nodep->addItemsp(new AstCaseItem(
+                nodep->fileline(), new AstConst(nodep->fileline(), AstConst::BitTrue()), nullptr));
         }
         if (debug() >= 9) nodep->dumpTree(cout, "    _comp_COND: ");
         // Now build the IF statement tree
@@ -419,7 +419,7 @@ private:
                 VL_DANGLING(ifexprp);
                 if (depth == CASE_ENCODER_GROUP_DEPTH) {  // End of group - can skip the condition
                     VL_DO_DANGLING(itemexprp->deleteTree(), itemexprp);
-                    itemexprp = new AstConst(itemp->fileline(), AstConst::LogicTrue());
+                    itemexprp = new AstConst(itemp->fileline(), AstConst::BitTrue());
                 }
                 AstIf* newp = new AstIf(itemp->fileline(), itemexprp, istmtsp, nullptr);
                 if (itemnextp) {
@@ -476,12 +476,17 @@ private:
             ++m_statCaseFast;
             VL_DO_DANGLING(replaceCaseFast(nodep), nodep);
         } else {
+            // If a case statement is whole, presume signals involved aren't forming a latch
+            if (m_alwaysp) m_alwaysp->fileline()->warnOff(V3ErrorCode::LATCH, true);
             ++m_statCaseSlow;
             VL_DO_DANGLING(replaceCaseComplicated(nodep), nodep);
         }
     }
     //--------------------
-    virtual void visit(AstNode* nodep) override { iterateChildren(nodep); }
+    virtual void visit(AstNode* nodep) override {
+        if (VN_IS(nodep, Always)) { m_alwaysp = nodep; }
+        iterateChildren(nodep);
+    }
 
 public:
     // CONSTRUCTORS

@@ -12,7 +12,7 @@ clean_objs();
 
 top_filename("t/t_hier_block.v");
 
-# Travis environment offers 2 VCPUs, 2 thread setting causes the following warning.
+# CI environment offers 2 VCPUs, 2 thread setting causes the following warning.
 # %Warning-UNOPTTHREADS: Thread scheduler is unable to provide requested parallelism; consider asking for fewer threads.
 # So use 6 threads here though it's not optimal in performace wise, but ok.
 scenarios(vlt_all => 1);
@@ -34,7 +34,7 @@ execute(
 file_grep($Self->{obj_dir} . "/Vsub0/sub0.sv", /^module\s+(\S+)\s+/, "sub0");
 file_grep($Self->{obj_dir} . "/Vsub1/sub1.sv", /^module\s+(\S+)\s+/, "sub1");
 file_grep($Self->{obj_dir} . "/Vsub2/sub2.sv", /^module\s+(\S+)\s+/, "sub2");
-file_grep($Self->{stats}, qr/HierBlock,\s+Hierarchical blocks\s+(\d+)/i, 10);
+file_grep($Self->{stats}, qr/HierBlock,\s+Hierarchical blocks\s+(\d+)/i, 13);
 file_grep($Self->{run_log_filename}, qr/MACRO:(\S+) is defined/i, "cplusplus");
 
 ok(1);

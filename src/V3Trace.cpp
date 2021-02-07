@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2020 by Wilson Snyder. This program is free software; you
+// Copyright 2003-2021 by Wilson Snyder. This program is free software; you
 // can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -46,6 +46,7 @@
 #include "V3Stats.h"
 
 #include <map>
+#include <limits>
 #include <set>
 
 //######################################################################
@@ -363,7 +364,7 @@ private:
                     // make slow routines set all activity flags.
                     actSet.erase(TraceActivityVertex::ACTIVITY_SLOW);
                 }
-                traces.insert(make_pair(actSet, vtxp));
+                traces.emplace(actSet, vtxp);
             }
         }
     }
@@ -426,7 +427,7 @@ private:
     void addActivitySetter(AstNode* insertp, uint32_t code) {
         FileLine* const fl = insertp->fileline();
         AstAssign* const setterp = new AstAssign(fl, selectActivity(fl, code, VAccess::WRITE),
-                                                 new AstConst(fl, AstConst::LogicTrue()));
+                                                 new AstConst(fl, AstConst::BitTrue()));
         if (AstCCall* const callp = VN_CAST(insertp, CCall)) {
             callp->addNextHere(setterp);
         } else if (AstCFunc* const funcp = VN_CAST(insertp, CFunc)) {
@@ -447,7 +448,8 @@ private:
         FileLine* const flp = m_topScopep->fileline();
         AstNodeDType* const newScalarDtp = new AstBasicDType(flp, VFlagLogicPacked(), 1);
         v3Global.rootp()->typeTablep()->addTypesp(newScalarDtp);
-        AstRange* const newArange = new AstRange(flp, VNumRange(m_activityNumber - 1, 0, false));
+        AstRange* const newArange
+            = new AstRange{flp, VNumRange{static_cast<int>(m_activityNumber) - 1, 0}};
         AstNodeDType* const newArrDtp = new AstUnpackArrayDType(flp, newScalarDtp, newArange);
         v3Global.rootp()->typeTablep()->addTypesp(newArrDtp);
         AstVar* const newvarp
@@ -603,7 +605,8 @@ private:
             AstCFunc* topFuncp = nullptr;
             AstCFunc* subFuncp = nullptr;
             int subStmts = 0;
-            const uint32_t maxCodes = (nAllCodes + parallelism - 1) / parallelism;
+            uint32_t maxCodes = (nAllCodes + parallelism - 1) / parallelism;
+            if (maxCodes < 1) maxCodes = 1;
             uint32_t nCodes = 0;
             const ActCodeSet* prevActSet = nullptr;
             AstIf* ifp = nullptr;
@@ -687,7 +690,7 @@ private:
         // Clear fine grained activity flags
         for (uint32_t i = 0; i < m_activityNumber; ++i) {
             AstNode* const clrp = new AstAssign(fl, selectActivity(fl, i, VAccess::WRITE),
-                                                new AstConst(fl, AstConst::LogicFalse()));
+                                                new AstConst(fl, AstConst::BitFalse()));
             cleanupFuncp->addStmtsp(clrp);
         }
     }

@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2020 by Wilson Snyder. This program is free software; you
+// Copyright 2003-2021 by Wilson Snyder. This program is free software; you
 // can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -18,6 +18,7 @@
 #include "verilatedos.h"
 
 #include "V3Global.h"
+#include "V3Ast.h"
 #include "V3String.h"
 #include "V3Os.h"
 #include "V3Options.h"
@@ -458,7 +459,7 @@ string V3Options::fileExists(const string& filename) {
     auto diriter = m_impp->m_dirMap.find(dir);
     if (diriter == m_impp->m_dirMap.end()) {
         // Read the listing
-        m_impp->m_dirMap.insert(std::make_pair(dir, std::set<string>()));
+        m_impp->m_dirMap.emplace(dir, std::set<string>());
         diriter = m_impp->m_dirMap.find(dir);
 
         std::set<string>* setp = &(diriter->second);
@@ -603,7 +604,11 @@ string V3Options::getenvBuiltins(const string& var) {
     }
 }
 
+#ifdef __FreeBSD__
+string V3Options::getenvMAKE() { return V3Os::getenvStr("MAKE", "gmake"); }
+#else
 string V3Options::getenvMAKE() { return V3Os::getenvStr("MAKE", "make"); }
+#endif
 
 string V3Options::getenvPERL() {  //
     return V3Os::getenvStr("PERL", "perl");
@@ -860,10 +865,10 @@ void V3Options::parseOpts(FileLine* fl, int argc, char** argv) {
     }
 
     // Default prefix to the filename
-    if (prefix() == "" && topModule() != "") m_prefix = string("V") + topModule();
-    if (prefix() == "" && vFilesList.size() >= 1) {
-        m_prefix = string("V") + V3Os::filenameNonExt(*(vFilesList.begin()));
-    }
+    if (prefix() == "" && topModule() != "")
+        m_prefix = string("V") + AstNode::encodeName(topModule());
+    if (prefix() == "" && vFilesList.size() >= 1)
+        m_prefix = string("V") + AstNode::encodeName(V3Os::filenameNonExt(*(vFilesList.begin())));
     if (modPrefix() == "") m_modPrefix = prefix();
 
     // Find files in makedir
@@ -1145,14 +1150,19 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
                     case 'c': m_oConst = flag; break;
                     case 'd': m_oDedupe = flag; break;
                     case 'e': m_oCase = flag; break;
+                    //    f
                     case 'g': m_oGate = flag; break;
+                    //    h
                     case 'i': m_oInline = flag; break;
+                    //    j
                     case 'k': m_oSubstConst = flag; break;
                     case 'l': m_oLife = flag; break;
                     case 'm': m_oAssemble = flag; break;
+                    //    n o
                     case 'p':
                         m_public = !flag;
                         break;  // With -Op so flag=0, we want public on so few optimizations done
+                    //    q
                     case 'r': m_oReorder = flag; break;
                     case 's': m_oSplit = flag; break;
                     case 't': m_oLifePost = flag; break;
@@ -1225,7 +1235,7 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
             } else if (!strcmp(sw, "-hierarchical-block") && (i + 1) < argc) {
                 shift;
                 V3HierarchicalBlockOption opt(argv[i]);
-                m_hierBlocks.insert(std::make_pair(opt.mangledName(), opt));
+                m_hierBlocks.emplace(opt.mangledName(), opt);
             } else if (!strncmp(sw, "-I", 2)) {
                 addIncDirUser(parseFileArg(optdir, string(sw + strlen("-I"))));
             } else if (!strcmp(sw, "-if-depth") && (i + 1) < argc) {
@@ -1426,16 +1436,16 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
                 shift;
                 parseOptsFile(fl, parseFileArg(optdir, argv[i]), false);
             } else if (!strcmp(sw, "-gdb")) {
-                // Used only in perl shell
+                // Processed only in bin/verilator shell
             } else if (!strcmp(sw, "-waiver-output") && (i + 1) < argc) {
                 shift;
                 m_waiverOutput = argv[i];
             } else if (!strcmp(sw, "-rr")) {
-                // Used only in perl shell
+                // Processed only in bin/verilator shell
             } else if (!strcmp(sw, "-gdbbt")) {
-                // Used only in perl shell
+                // Processed only in bin/verilator shell
             } else if (!strcmp(sw, "-quiet-exit")) {
-                // Used only in perl shell
+                // Processed only in bin/verilator shell
             } else if (!strcmp(sw, "-mod-prefix") && (i + 1) < argc) {
                 shift;
                 m_modPrefix = argv[i];
@@ -1498,7 +1508,7 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
                     m_timeDefaultPrec = prec;
                     m_timeOverridePrec = prec;
                 }
-            } else if (!strcmp(sw, "-top-module") && (i + 1) < argc) {
+            } else if ((!strcmp(sw, "-top-module") || !strcmp(sw, "-top")) && (i + 1) < argc) {
                 shift;
                 m_topModule = argv[i];
             } else if (!strcmp(sw, "-unused-regexp") && (i + 1) < argc) {
@@ -1736,7 +1746,7 @@ void V3Options::showVersion(bool verbose) {
     if (!verbose) return;
 
     cout << endl;
-    cout << "Copyright 2003-2020 by Wilson Snyder.  Verilator is free software; you can\n";
+    cout << "Copyright 2003-2021 by Wilson Snyder.  Verilator is free software; you can\n";
     cout << "redistribute it and/or modify the Verilator internals under the terms of\n";
     cout << "either the GNU Lesser General Public License Version 3 or the Perl Artistic\n";
     cout << "License Version 2.0.\n";
@@ -1810,7 +1820,7 @@ void V3Options::setDebugSrcLevel(const string& srcfile, int level) {
     if (iter != m_debugSrcs.end()) {
         iter->second = level;
     } else {
-        m_debugSrcs.insert(make_pair(srcfile, level));
+        m_debugSrcs.emplace(srcfile, level);
     }
 }
 
@@ -1831,7 +1841,7 @@ void V3Options::setDumpTreeLevel(const string& srcfile, int level) {
     if (iter != m_dumpTrees.end()) {
         iter->second = level;
     } else {
-        m_dumpTrees.insert(make_pair(srcfile, level));
+        m_dumpTrees.emplace(srcfile, level);
     }
 }
 

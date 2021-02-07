@@ -3,7 +3,7 @@
 //
 // THIS MODULE IS PUBLICLY LICENSED
 //
-// Copyright 2001-2020 by Wilson Snyder. This program is free software; you
+// Copyright 2001-2021 by Wilson Snyder. This program is free software; you
 // can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -99,6 +99,7 @@ private:
     ValueIndexMap m_valueIndexes VL_GUARDED_BY(m_mutex);  ///< Unique arbitrary value for values
     IndexValueMap m_indexValues VL_GUARDED_BY(m_mutex);  ///< Unique arbitrary value for keys
     ItemList m_items VL_GUARDED_BY(m_mutex);  ///< List of all items
+    int m_nextIndex VL_GUARDED_BY(m_mutex) = (KEY_UNDEF + 1);  ///< Next insert value
 
     VerilatedCovImpItem* m_insertp VL_GUARDED_BY(m_mutex) = nullptr;  ///< Item about to insert
     const char* m_insertFilenamep VL_GUARDED_BY(m_mutex) = nullptr;  ///< Filename about to insert
@@ -118,14 +119,13 @@ public:
 private:
     // PRIVATE METHODS
     int valueIndex(const std::string& value) VL_REQUIRES(m_mutex) {
-        static int nextIndex = KEY_UNDEF + 1;
         const auto iter = m_valueIndexes.find(value);
         if (iter != m_valueIndexes.end()) return iter->second;
-        nextIndex++;
-        assert(nextIndex > 0);  // Didn't rollover
-        m_valueIndexes.insert(std::make_pair(value, nextIndex));
-        m_indexValues.insert(std::make_pair(nextIndex, value));
-        return nextIndex;
+        m_nextIndex++;
+        assert(m_nextIndex > 0);  // Didn't rollover
+        m_valueIndexes.emplace(value, m_nextIndex);
+        m_indexValues.emplace(m_nextIndex, value);
+        return m_nextIndex;
     }
     static std::string dequote(const std::string& text) VL_PURE {
         // Quote any special characters
@@ -235,6 +235,7 @@ private:
         m_items.clear();
         m_indexValues.clear();
         m_valueIndexes.clear();
+        m_nextIndex = KEY_UNDEF + 1;
     }
 
 public:
@@ -389,7 +390,7 @@ public:
                 cit->second.second += itemp->count();
                 cit->second.first = combineHier(oldhier, hier);
             } else {
-                eventCounts.insert(std::make_pair(name, make_pair(hier, itemp->count())));
+                eventCounts.emplace(name, make_pair(hier, itemp->count()));
             }
         }
 

@@ -3,7 +3,7 @@
 //
 // THIS MODULE IS PUBLICLY LICENSED
 //
-// Copyright 2000-2020 by Wilson Snyder. This program is free software; you
+// Copyright 2000-2021 by Wilson Snyder. This program is free software; you
 // can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -38,8 +38,8 @@ protected:
     std::string m_filename;  ///< Filename, for error messages
     VerilatedAssertOneThread m_assertOne;  ///< Assert only called from single thread
 
-    inline static size_t bufferSize() { return 256 * 1024; }  // See below for slack calculation
-    inline static size_t bufferInsertSize() { return 16 * 1024; }
+    static constexpr size_t bufferSize() { return 256 * 1024; }  // See below for slack calculation
+    static constexpr size_t bufferInsertSize() { return 16 * 1024; }
 
     void header() VL_MT_UNSAFE_ONE;
     void trailer() VL_MT_UNSAFE_ONE;
@@ -98,8 +98,8 @@ protected:
     std::string m_filename;  ///< Filename, for error messages
     VerilatedAssertOneThread m_assertOne;  ///< Assert only called from single thread
 
-    inline static size_t bufferSize() { return 256 * 1024; }  // See below for slack calculation
-    inline static size_t bufferInsertSize() { return 16 * 1024; }
+    static constexpr size_t bufferSize() { return 256 * 1024; }  // See below for slack calculation
+    static constexpr size_t bufferInsertSize() { return 16 * 1024; }
 
     virtual void fill() = 0;
     void header() VL_MT_UNSAFE_ONE;

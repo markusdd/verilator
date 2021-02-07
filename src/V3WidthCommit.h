@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2020 by Wilson Snyder. This program is free software; you
+// Copyright 2003-2021 by Wilson Snyder. This program is free software; you
 // can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -133,7 +133,7 @@ private:
             const char* how = nullptr;
             if (local && defClassp && refClassp != defClassp) {
                 how = "'local'";
-            } else if (prot && defClassp && !classExtendedRecurse(refClassp, defClassp)) {
+            } else if (prot && defClassp && !AstClass::isClassExtendedFrom(refClassp, defClassp)) {
                 how = "'protected'";
             }
             if (how) {
@@ -148,12 +148,6 @@ private:
                                                   << defp->warnContextSecondary());
             }
         }
-    }
-    static bool classExtendedRecurse(const AstClass* refClassp, const AstClass* defClassp) {
-        // Return true if refClassp is an extends class of defClassp
-        if (!refClassp || !defClassp) return false;
-        if (refClassp == defClassp) return true;
-        return classExtendedRecurse(refClassp->extendsp()->classp(), defClassp);
     }
 
     // VISITORS

@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2020 by Wilson Snyder. This program is free software; you
+// Copyright 2003-2021 by Wilson Snyder. This program is free software; you
 // can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -161,7 +161,7 @@ private:
     // rarely required (only when trying to merge a "cond & value" with an
     // earlier ternary), we will just always mask it for safety.
     AstNode* maskLsb(AstNode* nodep) {
-        AstNode* const maskp = new AstConst(nodep->fileline(), AstConst::LogicTrue());
+        AstNode* const maskp = new AstConst(nodep->fileline(), AstConst::BitTrue());
         return new AstAnd(nodep->fileline(), nodep, maskp);
     }
 
@@ -170,8 +170,7 @@ private:
     // of the RHS is expected to be deleted by the caller.
     AstNode* foldAndUnlink(AstNode* rhsp, bool condTrue) {
         if (rhsp->sameTree(m_mgCondp)) {
-            return condTrue ? new AstConst(rhsp->fileline(), AstConst::LogicTrue())
-                            : new AstConst(rhsp->fileline(), AstConst::LogicFalse());
+            return new AstConst(rhsp->fileline(), AstConst::BitTrue{}, condTrue);
         } else if (AstNodeCond* const condp = extractCond(rhsp)) {
             AstNode* const resp
                 = condTrue ? condp->expr1p()->unlinkFrBack() : condp->expr2p()->unlinkFrBack();
@@ -183,12 +182,12 @@ private:
         } else if (AstAnd* const andp = VN_CAST(rhsp, And)) {
             if (andp->lhsp()->sameTree(m_mgCondp)) {
                 return condTrue ? maskLsb(andp->rhsp()->unlinkFrBack())
-                                : new AstConst(rhsp->fileline(), AstConst::LogicFalse());
+                                : new AstConst(rhsp->fileline(), AstConst::BitFalse());
             } else {
                 UASSERT_OBJ(andp->rhsp()->sameTree(m_mgCondp), rhsp,
                             "AstAnd doesn't hold condition expression");
                 return condTrue ? maskLsb(andp->lhsp()->unlinkFrBack())
-                                : new AstConst(rhsp->fileline(), AstConst::LogicFalse());
+                                : new AstConst(rhsp->fileline(), AstConst::BitFalse());
             }
         }
         rhsp->v3fatalSrc("Don't know how to fold expression");

@@ -3,7 +3,7 @@
 //
 // THIS MODULE IS PUBLICLY LICENSED
 //
-// Copyright 2001-2020 by Wilson Snyder. This program is free software; you
+// Copyright 2001-2021 by Wilson Snyder. This program is free software; you
 // can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -216,14 +216,13 @@ protected:
     double timeRes() const { return m_timeRes; }
     double timeUnit() const { return m_timeUnit; }
     std::string timeResStr() const;
-    std::string timeUnitStr() const;
 
     void traceInit() VL_MT_UNSAFE;
 
     void declCode(vluint32_t code, vluint32_t bits, bool tri);
 
     /// Is this an escape?
-    bool isScopeEscape(char c) { return isspace(c) || c == m_scopeEscape; }
+    bool isScopeEscape(char c) { return c != '\f' && (isspace(c) || c == m_scopeEscape); }
     /// Character that splits scopes.  Note whitespace are ALWAYS escapes.
     char scopeEscape() { return m_scopeEscape; }
 
